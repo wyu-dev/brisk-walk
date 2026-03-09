@@ -575,11 +575,11 @@ canvas#chart { width: 100% !important; height: 100% !important; }
           <span id="dbg-status" style="color:var(--warn)">Menunggu...</span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <span>Axis Y (smooth)</span>
+          <span>Magnitude</span>
           <span id="dbg-mag" class="mono">&#8212;</span>
         </div>
         <div style="display:flex;justify-content:space-between">
-          <span>Delta (threshold: <span id="dbg-thresh">0.8</span>)</span>
+          <span>Min peak (auto: <span id="dbg-thresh">—</span>)</span>
           <span id="dbg-delta" class="mono">&#8212;</span>
         </div>
       </div>
@@ -664,7 +664,7 @@ let state = {
 };
 
 // Pedometer — vector magnitude + adaptive threshold
-let stepCooldown = 400;
+let stepCooldown = 550;
 let lastStep     = 0;
 let sensorActive = false;
 let magHistory   = [];          // simpan 20 bacaan magnitude terakhir
@@ -997,16 +997,22 @@ function pollMotion() {
   magHistory.push(mag);
   if (magHistory.length > MAG_BUF) magHistory.shift();
 
-  // Adaptive threshold = mean + separuh stddev
-  const mean = magHistory.reduce((a,b) => a+b, 0) / magHistory.length;
+  // Tunggu buffer penuh dulu sebelum mula detect
+  if (magHistory.length < MAG_BUF) return;
+
+  const mean     = magHistory.reduce((a,b) => a+b, 0) / magHistory.length;
   const variance = magHistory.reduce((a,b) => a + (b-mean)**2, 0) / magHistory.length;
-  const stddev = Math.sqrt(variance);
-  const threshold = mean + (stddev * 0.6);
+  const stddev   = Math.sqrt(variance);
+
+  // Adaptive threshold — kena jauh dari mean untuk elak noise statik
+  const threshold    = mean + (stddev * 1.8);
+  // Peak minimum — langkah sebenar mesti ada amplitude sekurang-kurangnya ni
+  const minPeakDelta = Math.max(2.5, stddev * 1.2);
 
   // Update debug
-  document.getElementById('dbg-mag').textContent   = mag.toFixed(2);
-  document.getElementById('dbg-delta').textContent = threshold.toFixed(2);
-  document.getElementById('dbg-thresh').textContent = threshold.toFixed(1);
+  document.getElementById('dbg-mag').textContent    = mag.toFixed(2);
+  document.getElementById('dbg-delta').textContent  = (mag - mean).toFixed(2);
+  document.getElementById('dbg-thresh').textContent = minPeakDelta.toFixed(1);
 
   const now = Date.now();
 
@@ -1016,15 +1022,15 @@ function pollMotion() {
     localMax  = mag;
   } else if (stepState === 'rising') {
     if (mag > localMax) {
-      localMax = mag; // track peak
+      localMax = mag;
     } else if (mag < threshold) {
-      // Turun balik bawah threshold — peak selesai
       stepState = 'falling';
     }
   } else if (stepState === 'falling') {
     if (mag < mean) {
-      // Dah turun ke bawah mean — confirm 1 langkah
-      if ((now - lastStep) > stepCooldown && localMax > (mean + stddev * 0.4)) {
+      const peakDelta = localMax - mean;
+      // Langkah sah: peak mesti cukup besar DAN cooldown dipenuhi
+      if ((now - lastStep) > stepCooldown && peakDelta > minPeakDelta) {
         lastStep = now;
         state.sesi.langkah++;
         document.getElementById('sesi-count').textContent = state.sesi.langkah;
