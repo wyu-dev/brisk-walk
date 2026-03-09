@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a1628">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Brisk Walk Challenge — ADTEC Kuantan</title>
+
+<!-- PWA Manifest inline -->
+<script>
+const MANIFEST = {
+  name: "Brisk Walk Challenge",
+  short_name: "BriskWalk",
+  start_url: "./",
+  display: "standalone",
+  background_color: "#0a1628",
+  theme_color: "#0a1628",
+  icons: [{ src: "https://via.placeholder.com/192", sizes: "192x192", type: "image/png" }]
+};
+const blob = new Blob([JSON.stringify(MANIFEST)], {type:'application/json'});
+const link = document.createElement('link');
+link.rel = 'manifest';
+link.href = URL.createObjectURL(blob);
+document.head.appendChild(link);
+</script>
+
+<style>
+/* ── GOOGLE FONTS ─────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap');
+
+/* ── CSS VARIABLES ────────────────────────────── */
+:root {
+  --bg:       #0a1628;
+  --bg2:      #0f1f3d;
+  --surface:  #162040;
+  --border:   rgba(255,255,255,0.08);
+  --accent:   #00e5a0;
+  --accent2:  #0096ff;
+  --warn:     #ff6b35;
+  --text:     #e8f0fe;
+  --muted:    #6b82a8;
+  --font-dis: 'Bebas Neue', sans-serif;
+  --font-body:'DM Sans', sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+  --r:        16px;
+  --api: 'https://script.google.com/macros/s/AKfycbwsgbdtKhfLJSM4Q-bctAISvf5Vqa-KtpeId7gxJbZddxxnTgp5yGFYG3Jv7MEes92S/exec';
+}
+
+/* ── RESET ────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  position: relative;
+}
+
+/* ── ANIMATED BG ──────────────────────────────── */
+.bg-anim {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  overflow: hidden;
+}
+.bg-anim::before {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,229,160,0.07) 0%, transparent 70%);
+  top: -200px; right: -200px;
+  animation: float1 8s ease-in-out infinite;
+}
+.bg-anim::after {
+  content: '';
+  position: absolute;
+  width: 400px; height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,150,255,0.06) 0%, transparent 70%);
+  bottom: -100px; left: -100px;
+  animation: float2 10s ease-in-out infinite;
+}
+@keyframes float1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,40px)} }
+@keyframes float2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-30px)} }
+
+/* ── LAYOUT ───────────────────────────────────── */
+#app {
+  position: relative; z-index: 1;
+  height: 100vh;
+  display: flex; flex-direction: column;
+  max-width: 430px; margin: 0 auto;
+}
+
+/* ── SCREENS ──────────────────────────────────── */
+.screen {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 24px 20px 32px;
+  animation: fadeUp .35s ease both;
+}
+.screen.active { display: flex; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(18px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ── HEADER ───────────────────────────────────── */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 0;
+  position: relative; z-index: 2;
+}
+.logo {
+  font-family: var(--font-dis);
+  font-size: 22px; letter-spacing: 2px;
+  color: var(--accent);
+}
+.logo span { color: var(--text); }
+.hdr-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); padding: 6px 14px;
+  border-radius: 20px; font-size: 13px; cursor: pointer;
+  font-family: var(--font-body);
+  transition: all .2s;
+}
+.hdr-btn:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── TYPOGRAPHY ───────────────────────────────── */
+.display { font-family: var(--font-dis); letter-spacing: 1px; }
+.mono    { font-family: var(--font-mono); }
+
+/* ── CARD ─────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+  margin-bottom: 14px;
+}
+.card-sm { padding: 14px 16px; }
+
+/* ── BUTTONS ──────────────────────────────────── */
+.btn {
+  width: 100%; padding: 16px;
+  border: none; border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+  position: relative; overflow: hidden;
+}
+.btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255,255,255,0);
+  transition: background .2s;
+}
+.btn:active::after { background: rgba(255,255,255,0.1); }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #00c87a);
+  color: #0a1628;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,229,160,0.3); }
+
+.btn-secondary {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--warn), #e8450a);
+  color: #fff;
+}
+.btn-danger:hover { box-shadow: 0 8px 24px rgba(255,107,53,0.35); transform: translateY(-1px); }
+
+.btn-sm {
+  width: auto; padding: 8px 18px;
+  font-size: 13px; border-radius: 8px;
+}
+
+/* ── FORM ─────────────────────────────────────── */
+.field { margin-bottom: 16px; }
+.field label {
+  display: block; font-size: 12px;
+  color: var(--muted); letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.field input, .field select {
+  width: 100%; padding: 13px 16px;
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  color: var(--text); font-size: 15px;
+  font-family: var(--font-body);
+  outline: none; transition: border-color .2s;
+}
+.field input:focus, .field select:focus { border-color: var(--accent); }
+.field select option { background: var(--bg2); }
+.field input[type="password"] { letter-spacing: 4px; font-size: 18px; }
+
+/* ── TABS ─────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 8px;
+  background: var(--bg2); border-radius: 12px; padding: 4px;
+  margin-bottom: 20px;
+}
+.tab {
+  flex: 1; padding: 10px; border: none; background: transparent;
+  color: var(--muted); font-size: 14px; font-weight: 500;
+  border-radius: 9px; cursor: pointer;
+  font-family: var(--font-body); transition: all .2s;
+}
+.tab.active {
+  background: var(--surface); color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ── BADGE / CHIP ─────────────────────────────── */
+.badge {
+  display: inline-block; padding: 3px 10px;
+  border-radius: 20px; font-size: 11px; font-weight: 600;
+  letter-spacing: .5px; text-transform: uppercase;
+}
+.badge-green { background: rgba(0,229,160,0.15); color: var(--accent); }
+.badge-blue  { background: rgba(0,150,255,0.15); color: var(--accent2); }
+.badge-warn  { background: rgba(255,107,53,0.15); color: var(--warn); }
+.badge-muted { background: rgba(107,130,168,0.15); color: var(--muted); }
+
+/* ── DIVIDER ──────────────────────────────────── */
+.divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 20px 0; color: var(--muted); font-size: 13px;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* ── TOAST ────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 20px;
+  font-size: 14px; white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 999; transition: transform .3s ease;
+  max-width: 90vw; white-space: normal; text-align: center;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.ok   { border-color: var(--accent); color: var(--accent); }
+#toast.err  { border-color: var(--warn);   color: var(--warn); }
+
+/* ── LOADING ──────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SCREEN: LANDING ──────────────────────────── */
+#s-landing {
+  justify-content: center; align-items: center; text-align: center;
+  gap: 0;
+}
+.landing-icon {
+  font-size: 72px; margin-bottom: 16px;
+  animation: bounce 2s ease-in-out infinite;
+}
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.landing-title {
+  font-family: var(--font-dis);
+  font-size: 42px; line-height: 1;
+  letter-spacing: 3px; margin-bottom: 6px;
+}
+.landing-title em { color: var(--accent); font-style: normal; }
+.landing-sub {
+  color: var(--muted); font-size: 14px;
+  margin-bottom: 40px; letter-spacing: 1px;
+}
+.landing-btns { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── SCREEN: AUTH ─────────────────────────────── */
+.auth-title {
+  font-family: var(--font-dis);
+  font-size: 32px; margin-bottom: 4px; letter-spacing: 2px;
+}
+.auth-sub { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+
+/* ── SCREEN: DASHBOARD ────────────────────────── */
+.greeting { margin-bottom: 20px; }
+.greeting h2 {
+  font-family: var(--font-dis); font-size: 28px; letter-spacing: 1px;
+}
+.greeting p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+.stat-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;
+}
+.stat-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px;
+  text-align: center;
+}
+.stat-val {
+  font-family: var(--font-dis);
+  font-size: 36px; color: var(--accent); letter-spacing: 1px;
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+/* ── CHART ────────────────────────────────────── */
+.chart-wrap {
+  position: relative; height: 120px; margin-top: 8px;
+}
+canvas#chart { width: 100% !important; height: 100% !important; }
+
+/* ── LEADERBOARD ──────────────────────────────── */
+.lb-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.lb-item:last-child { border-bottom: none; }
+.lb-rank {
+  font-family: var(--font-dis); font-size: 22px;
+  width: 36px; text-align: center; color: var(--muted);
+  flex-shrink: 0;
+}
+.lb-rank.gold   { color: #ffd700; }
+.lb-rank.silver { color: #c0c0c0; }
+.lb-rank.bronze { color: #cd7f32; }
+.lb-info { flex: 1; }
+.lb-nama { font-size: 14px; font-weight: 500; }
+.lb-bhg  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.lb-steps {
+  font-family: var(--font-mono); font-size: 14px;
+  color: var(--accent); font-weight: 700;
+}
+
+/* ── SCREEN: SESI AKTIF ───────────────────────── */
+#s-sesi { justify-content: center; align-items: center; text-align: center; }
+
+.sesi-ring {
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  position: relative; margin: 0 auto 28px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.sesi-ring::before {
+  content: '';
+  position: absolute; inset: -8px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  animation: spin 3s linear infinite;
+}
+.sesi-steps {
+  font-family: var(--font-dis); font-size: 64px;
+  color: var(--accent); line-height: 1;
+  letter-spacing: 2px;
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+.sesi-lbl { font-size: 13px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+.sesi-timer {
+  font-family: var(--font-mono); font-size: 28px;
+  margin-bottom: 8px;
+}
+.sesi-geo {
+  font-size: 13px; padding: 6px 16px;
+  border-radius: 20px; margin-bottom: 28px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.sesi-geo.ok  { background: rgba(0,229,160,0.1); color: var(--accent); }
+.sesi-geo.err { background: rgba(255,107,53,0.1); color: var(--warn); }
+.dot { width: 8px; height: 8px; border-radius: 50%; animation: blink 1.2s ease-in-out infinite; }
+.dot.green { background: var(--accent); }
+.dot.red   { background: var(--warn); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+/* ── ADMIN ────────────────────────────────────── */
+.admin-stat {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;
+}
+.astat {
+  background: var(--bg2); border-radius: 12px; padding: 14px;
+  border: 1px solid var(--border); text-align: center;
+}
+.astat-val { font-family: var(--font-dis); font-size: 30px; color: var(--accent2); }
+.astat-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-top: 2px; }
+
+/* ── SCROLL UTIL ──────────────────────────────── */
+.scroll-area { overflow-y: auto; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ── NO DATA ──────────────────────────────────── */
+.empty {
+  text-align: center; padding: 32px 0;
+  color: var(--muted); font-size: 14px;
+}
+.empty .icon { font-size: 36px; margin-bottom: 8px; }
+
+/* ── BOTTOM NAV ───────────────────────────────── */
+.bnav {
+  display: none;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 0 12px;
+  position: relative; z-index: 2;
+}
+.bnav.show { display: flex; }
+.bnav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 10px;
+  font-family: var(--font-body); letter-spacing: .5px;
+  transition: color .2s;
+}
+.bnav-item.active { color: var(--accent); }
+.bnav-icon { font-size: 22px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<div class="bg-anim"></div>
+
+<!-- HEADER -->
+<div class="hdr" id="hdr">
+  <div class="logo">BRISK<span>WALK</span></div>
+  <button class="hdr-btn" id="hdr-action" onclick="handleHdrAction()" style="display:none"></button>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- ── LANDING ── -->
+  <div class="screen active" id="s-landing">
+    <div class="landing-icon">🥾</div>
+    <div class="landing-title">BRISK<br><em>WALK</em></div>
+    <div class="landing-sub">ADTEC KUANTAN · CABARAN LANGKAH</div>
+    <div class="landing-btns">
+      <button class="btn btn-primary" onclick="showAuth('login')">Log Masuk</button>
+      <button class="btn btn-secondary" onclick="showAuth('daftar')">Daftar Baru</button>
+      <div class="divider">atau</div>
+      <button class="btn btn-secondary" onclick="showAdminAuth()">🔒 Admin</button>
+    </div>
+  </div>
+
+  <!-- ── AUTH ── -->
+  <div class="screen" id="s-auth">
+    <div class="tabs">
+      <button class="tab" id="tab-login" onclick="switchTab('login')">Log Masuk</button>
+      <button class="tab" id="tab-daftar" onclick="switchTab('daftar')">Daftar</button>
+    </div>
+
+    <!-- Login -->
+    <div id="form-login">
+      <div class="auth-title display">SELAMAT<br>KEMBALI</div>
+      <div class="auth-sub">Masukkan maklumat anda untuk teruskan</div>
+      <div class="field"><label>Nama Penuh</label><input id="l-nama" type="text" placeholder="Nama anda"></div>
+      <div class="field"><label>Bahagian</label>
+        <select id="l-bhg">
+          <option value="">-- Pilih Bahagian --</option>
+          <option>Pentadbiran</option><option>Bengkel</option><option>Akademik</option>
+          <option>HEP</option><option>Stor</option><option>Keselamatan</option><option>Lain-lain</option>
+        </select>
+      </div>
+      <div class="field"><label>PIN (4 digit)</label><input id="l-pin" type="password" maxlength="4" inputmode="numeric" placeholder="••••"></div>
+      <button class="btn btn-primary" id="btn-login" onclick="doLogin()">Log Masuk</button>
+      <div class="divider">tiada akaun?</div>
+      <button class="btn btn-secondary btn-sm" style="width:100%" onclick="switchTab('daftar')">Daftar Sekarang</button>
+    </div>
+
+    <!-- Daftar -->
+    <div id="form-daftar" style="display:none">
+      <div class="auth-title display">DAFTAR<br>PESERTA</div>
+      <div class="auth-sub">Daftar sekali, terus boleh mula berlumba</div>
+      <div class="field"><label>Nama Penuh</label><input id="d-nama" type="text" placeholder="Nama penuh anda"></div>
+      <div class="field"><label>Bahagian</label>
+        <select id="d-bhg">
+          <option value="">-- Pilih Bahagian --</option>
+          <option>Pentadbiran</option><option>Bengkel</option><option>Akademik</option>
+          <option>HEP</option><option>Stor</option><option>Keselamatan</option><option>Lain-lain</option>
+        </select>
+      </div>
+      <div class="field"><label>PIN Baharu (4 digit)</label><input id="d-pin" type="password" maxlength="4" inputmode="numeric" placeholder="••••"></div>
+      <div class="field"><label>Sahkan PIN</label><input id="d-pin2" type="password" maxlength="4" inputmode="numeric" placeholder="••••"></div>
+      <button class="btn btn-primary" id="btn-daftar" onclick="doDaftar()">Daftar</button>
+    </div>
+  </div>
+
+  <!-- ── DASHBOARD ── -->
+  <div class="screen" id="s-dash">
+    <div class="greeting">
+      <h2 class="display" id="greet-nama">HI, PESERTA</h2>
+      <p id="greet-bhg"></p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-val" id="stat-hari">—</div>
+        <div class="stat-lbl">Langkah Hari Ini</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="stat-jumlah">—</div>
+        <div class="stat-lbl">Jumlah Keseluruhan</div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-val" id="stat-kedudukan">—</div>
+        <div class="stat-lbl">Kedudukan</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="stat-total-p">—</div>
+        <div class="stat-lbl">Jumlah Peserta</div>
+      </div>
+    </div>
+
+    <!-- Graf 7 hari -->
+    <div class="card">
+      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">📊 Rekod 7 Hari</div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </div>
+
+    <button class="btn btn-primary" style="margin-bottom:12px" onclick="showSesi()">
+      ▶ &nbsp; MULA REKOD LANGKAH
+    </button>
+  </div>
+
+  <!-- ── LEADERBOARD ── -->
+  <div class="screen" id="s-lb">
+    <div style="font-family:var(--font-dis);font-size:28px;letter-spacing:2px;margin-bottom:4px">🏆 LEADERBOARD</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Kedudukan keseluruhan pertandingan</div>
+    <div class="field">
+      <select id="lb-filter" onchange="loadLeaderboard()">
+        <option value="">Semua Bahagian</option>
+        <option>Pentadbiran</option><option>Bengkel</option><option>Akademik</option>
+        <option>HEP</option><option>Stor</option><option>Keselamatan</option><option>Lain-lain</option>
+      </select>
+    </div>
+    <div class="card" id="lb-list" style="padding:4px 16px">
+      <div class="empty"><div class="icon">⏳</div>Memuatkan...</div>
+    </div>
+  </div>
+
+  <!-- ── SESI AKTIF ── -->
+  <div class="screen" id="s-sesi">
+    <div class="sesi-ring">
+      <div class="sesi-steps mono" id="sesi-count">0</div>
+      <div class="sesi-lbl">LANGKAH</div>
+    </div>
+
+    <div class="sesi-timer mono" id="sesi-timer">00:00</div>
+
+    <div class="sesi-geo ok" id="sesi-geo">
+      <div class="dot green"></div>
+      Dalam kawasan ADTEC
+    </div>
+
+    <div style="width:100%;display:flex;flex-direction:column;gap:12px">
+      <div class="card card-sm" style="text-align:center">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Had Masa Sesi</div>
+        <div style="font-family:var(--font-mono);font-size:18px;color:var(--warn)" id="sesi-had">30:00</div>
+      </div>
+      <button class="btn btn-danger" id="btn-tamat" onclick="tamatSesi()">⏹ &nbsp; TAMAT SESI</button>
+      <div style="font-size:12px;color:var(--muted);text-align:center">
+        Sesi akan ditamat secara automatik selepas 30 minit
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ADMIN ── -->
+  <div class="screen" id="s-admin">
+    <div style="font-family:var(--font-dis);font-size:28px;letter-spacing:2px;margin-bottom:4px">⚙️ ADMIN</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Dashboard Pentadbir</div>
+
+    <div class="admin-stat" id="admin-stat">
+      <div class="astat"><div class="astat-val" id="a-peserta">—</div><div class="astat-lbl">Peserta</div></div>
+      <div class="astat"><div class="astat-val" id="a-aktif">—</div><div class="astat-lbl">Aktif Hari Ini</div></div>
+      <div class="astat"><div class="astat-val" id="a-langkah">—</div><div class="astat-lbl">Total Langkah</div></div>
+      <div class="astat"><div class="astat-val" id="a-flag">—</div><div class="astat-lbl">Sesi Syak</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">🏆 Leaderboard</div>
+      <div id="admin-lb"><div class="empty"><div class="icon">⏳</div></div></div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">⚙️ Tetapan Pertandingan</div>
+      <div class="field"><label>Tarikh Mula</label><input type="date" id="set-mula"></div>
+      <div class="field"><label>Tarikh Tamat</label><input type="date" id="set-tamat"></div>
+      <div class="field"><label>Radius Kawasan (meter)</label><input type="number" id="set-radius" placeholder="400"></div>
+      <button class="btn btn-primary btn-sm" onclick="saveTetapan()" style="width:100%">Simpan Tetapan</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- BOTTOM NAV -->
+<div class="bnav" id="bnav">
+  <button class="bnav-item active" id="nav-dash" onclick="switchNav('dash')">
+    <div class="bnav-icon">🏠</div>Utama
+  </button>
+  <button class="bnav-item" id="nav-sesi" onclick="showSesi()">
+    <div class="bnav-icon">▶️</div>Rekod
+  </button>
+  <button class="bnav-item" id="nav-lb" onclick="switchNav('lb')">
+    <div class="bnav-icon">🏆</div>Ranking
+  </button>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- CHART.JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════
+const API_URL = 'https://script.google.com/macros/s/AKfycbwsgbdtKhfLJSM4Q-bctAISvf5Vqa-KtpeId7gxJbZddxxnTgp5yGFYG3Jv7MEes92S/exec';
+
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+let state = {
+  user:       null,   // { id, nama, bahagian }
+  adminPin:   null,
+  isAdmin:    false,
+  sesi: {
+    aktif:    false,
+    idSesi:   null,
+    langkah:  0,
+    detik:    0,
+    timer:    null,
+    geoTimer: null,
+    autoStop: null,
+    motionOk: false,
+  }
+};
+
+// Pedometer state
+let lastAcc = null, stepThreshold = 12, stepCooldown = 300, lastStep = 0;
+
+// Chart instance
+let chartInst = null;
+
+// ═══════════════════════════════════════════════
+//  API
+// ═══════════════════════════════════════════════
+async function api(payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'text/plain' },
+  });
+  return res.json();
+}
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+}
+
+function switchNav(id) {
+  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById('nav-' + id);
+  if (el) el.classList.add('active');
+  showScreen(id);
+  if (id === 'lb') loadLeaderboard();
+}
+
+function showAuth(tab) {
+  showScreen('auth');
+  switchTab(tab);
+  document.getElementById('bnav').classList.remove('show');
+  setHdrAction('← Kembali', () => showScreen('landing'));
+}
+
+function showAdminAuth() {
+  const pin = prompt('Masukkan PIN Admin:');
+  if (!pin) return;
+  adminLoginFlow(pin);
+}
+
+function setHdrAction(label, fn) {
+  const btn = document.getElementById('hdr-action');
+  btn.style.display = '';
+  btn.textContent = label;
+  btn.onclick = fn;
+}
+
+function handleHdrAction() {}
+
+// ═══════════════════════════════════════════════
+//  AUTH TABS
+// ═══════════════════════════════════════════════
+function switchTab(tab) {
+  document.getElementById('form-login').style.display  = tab === 'login'  ? '' : 'none';
+  document.getElementById('form-daftar').style.display = tab === 'daftar' ? '' : 'none';
+  document.getElementById('tab-login').classList.toggle('active',  tab === 'login');
+  document.getElementById('tab-daftar').classList.toggle('active', tab === 'daftar');
+}
+
+// ═══════════════════════════════════════════════
+//  LOGIN
+// ═══════════════════════════════════════════════
+async function doLogin() {
+  const nama = document.getElementById('l-nama').value.trim();
+  const bhg  = document.getElementById('l-bhg').value;
+  const pin  = document.getElementById('l-pin').value;
+  if (!nama || !bhg || !pin) return toast('Sila lengkapkan semua maklumat.', 'err');
+
+  setBtnLoad('btn-login', true);
+  const r = await api({ action: 'login', nama, bahagian: bhg, pin });
+  setBtnLoad('btn-login', false);
+
+  if (!r.ok) return toast(r.mesej, 'err');
+
+  state.user = { id: r.id, nama: r.nama, bahagian: r.bahagian };
+  enterDashboard();
+}
+
+// ═══════════════════════════════════════════════
+//  DAFTAR
+// ═══════════════════════════════════════════════
+async function doDaftar() {
+  const nama  = document.getElementById('d-nama').value.trim();
+  const bhg   = document.getElementById('d-bhg').value;
+  const pin   = document.getElementById('d-pin').value;
+  const pin2  = document.getElementById('d-pin2').value;
+  if (!nama || !bhg || !pin) return toast('Sila lengkapkan semua maklumat.', 'err');
+  if (pin !== pin2) return toast('PIN tidak sepadan.', 'err');
+  if (pin.length !== 4 || isNaN(pin)) return toast('PIN mesti 4 digit nombor.', 'err');
+
+  setBtnLoad('btn-daftar', true);
+  const r = await api({ action: 'daftar', nama, bahagian: bhg, pin });
+  setBtnLoad('btn-daftar', false);
+
+  if (!r.ok) return toast(r.mesej, 'err');
+
+  toast('Pendaftaran berjaya! Sila log masuk.', 'ok');
+  setTimeout(() => switchTab('login'), 1500);
+}
+
+// ═══════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════
+async function enterDashboard() {
+  showScreen('dash');
+  document.getElementById('bnav').classList.add('show');
+  document.getElementById('hdr-action').style.display = '';
+  document.getElementById('hdr-action').textContent = 'Log Keluar';
+  document.getElementById('hdr-action').onclick = logKeluar;
+
+  document.getElementById('greet-nama').textContent = 'HI, ' + state.user.nama.split(' ')[0].toUpperCase();
+  document.getElementById('greet-bhg').textContent  = state.user.bahagian + ' · ADTEC Kuantan';
+
+  loadDashboard();
+}
+
+async function loadDashboard() {
+  const r = await api({ action: 'getDashboard', idPeserta: state.user.id });
+  if (!r.ok) return;
+
+  document.getElementById('stat-hari').textContent     = fmtNum(r.langkahHariIni);
+  document.getElementById('stat-jumlah').textContent   = fmtNum(r.jumlahTotal);
+  document.getElementById('stat-kedudukan').textContent = '#' + r.kedudukan;
+  document.getElementById('stat-total-p').textContent  = r.jumlahPeserta;
+
+  drawChart(r.graf7Hari);
+}
+
+function drawChart(data) {
+  const labels = Object.keys(data).map(d => {
+    const dt = new Date(d);
+    return ['Ahd','Isn','Sel','Rab','Kha','Jum','Sab'][dt.getDay()];
+  });
+  const vals = Object.values(data);
+
+  if (chartInst) chartInst.destroy();
+  const ctx = document.getElementById('chart').getContext('2d');
+  chartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: vals,
+        backgroundColor: vals.map(v => v > 0 ? 'rgba(0,229,160,0.6)' : 'rgba(255,255,255,0.06)'),
+        borderColor: vals.map(v => v > 0 ? '#00e5a0' : 'transparent'),
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => fmtNum(ctx.raw) + ' langkah' }
+      }},
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6b82a8', font: { size: 11 } } },
+        y: { display: false, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  LEADERBOARD
+// ═══════════════════════════════════════════════
+async function loadLeaderboard() {
+  const bhg = document.getElementById('lb-filter')?.value || '';
+  const r   = await api({ action: 'getLeaderboard', bahagian: bhg });
+  if (!r.ok) return;
+
+  const el = document.getElementById('lb-list');
+  if (!r.leaderboard.length) {
+    el.innerHTML = '<div class="empty"><div class="icon">🏜️</div>Tiada data lagi</div>';
+    return;
+  }
+
+  el.innerHTML = r.leaderboard.slice(0, 20).map((p, i) => {
+    const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+    const myClass   = state.user && p.id === state.user.id ? 'style="background:rgba(0,229,160,0.06);border-radius:10px;padding:0 8px"' : '';
+    return `<div class="lb-item" ${myClass}>
+      <div class="lb-rank ${rankClass}">${i < 3 ? ['🥇','🥈','🥉'][i] : '#' + p.kedudukan}</div>
+      <div class="lb-info">
+        <div class="lb-nama">${p.nama}${state.user && p.id === state.user.id ? ' <span class="badge badge-green">Saya</span>' : ''}</div>
+        <div class="lb-bhg">${p.bahagian} · ${p.sesiCount} sesi</div>
+      </div>
+      <div class="lb-steps">${fmtNum(p.jumlah)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  SESI REKOD
+// ═══════════════════════════════════════════════
+async function showSesi() {
+  // Semak permission sensor
+  if (typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function') {
+    try {
+      const perm = await DeviceMotionEvent.requestPermission();
+      if (perm !== 'granted') return toast('Permission sensor diperlukan untuk rekod langkah.', 'err');
+    } catch(e) { return toast('Tidak dapat akses sensor.', 'err'); }
+  }
+
+  // Dapatkan GPS dulu
+  toast('Sedang semak lokasi...', 'ok');
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+
+      const r = await api({ action: 'mulaSesi', idPeserta: state.user.id, lat, lng });
+      if (!r.ok) return toast(r.mesej, 'err');
+
+      state.sesi.idSesi  = r.idSesi;
+      state.sesi.aktif   = true;
+      state.sesi.langkah = 0;
+      state.sesi.detik   = 0;
+      lastAcc = null;
+
+      showScreen('sesi');
+      document.getElementById('nav-sesi').classList.add('active');
+      document.querySelectorAll('.bnav-item:not(#nav-sesi)').forEach(b => b.classList.remove('active'));
+
+      startSesiTimers(lat, lng);
+      startMotion();
+
+      toast('Sesi bermula! Selamat berjalan 🥾', 'ok');
+    },
+    (err) => {
+      toast('Tidak dapat akses GPS. Sila benarkan lokasi.', 'err');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function startSesiTimers(initLat, initLng) {
+  // Clock
+  state.sesi.timer = setInterval(() => {
+    state.sesi.detik++;
+    const m = String(Math.floor(state.sesi.detik / 60)).padStart(2, '0');
+    const s = String(state.sesi.detik % 60).padStart(2, '0');
+    document.getElementById('sesi-timer').textContent = m + ':' + s;
+
+    // Had masa countdown
+    const baki = Math.max(0, 1800 - state.sesi.detik);
+    const bm   = String(Math.floor(baki / 60)).padStart(2, '0');
+    const bs   = String(baki % 60).padStart(2, '0');
+    document.getElementById('sesi-had').textContent = bm + ':' + bs;
+
+    if (baki === 0) tamatSesi(); // auto tamat
+  }, 1000);
+
+  // GPS check setiap 2 minit
+  state.sesi.geoTimer = setInterval(() => {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      const jarak = haversineJS(lat, lng, 3.8133, 103.3267);
+      const geoEl = document.getElementById('sesi-geo');
+      if (jarak > 400) {
+        geoEl.className = 'sesi-geo err';
+        geoEl.innerHTML = '<div class="dot red"></div> Luar kawasan ADTEC!';
+      } else {
+        geoEl.className = 'sesi-geo ok';
+        geoEl.innerHTML = '<div class="dot green"></div> Dalam kawasan ADTEC';
+      }
+    });
+  }, 120000);
+}
+
+// ── Accelerometer / Pedometer ──
+function startMotion() {
+  window.addEventListener('devicemotion', onMotion);
+}
+
+function stopMotion() {
+  window.removeEventListener('devicemotion', onMotion);
+}
+
+function onMotion(e) {
+  const acc = e.accelerationIncludingGravity;
+  if (!acc) return;
+
+  const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
+
+  if (lastAcc !== null) {
+    const delta = Math.abs(mag - lastAcc);
+    const now   = Date.now();
+    if (delta > stepThreshold && (now - lastStep) > stepCooldown) {
+      lastStep = now;
+      state.sesi.langkah++;
+      document.getElementById('sesi-count').textContent = state.sesi.langkah;
+    }
+  }
+  lastAcc = mag;
+
+  // Auto-save tiap 30 saat ke localStorage
+  if (state.sesi.detik % 30 === 0) {
+    localStorage.setItem('sesiDraft', JSON.stringify({
+      idSesi: state.sesi.idSesi,
+      langkah: state.sesi.langkah,
+      detik: state.sesi.detik,
+    }));
+  }
+}
+
+async function tamatSesi() {
+  if (!state.sesi.aktif) return;
+
+  clearInterval(state.sesi.timer);
+  clearInterval(state.sesi.geoTimer);
+  stopMotion();
+  localStorage.removeItem('sesiDraft');
+
+  const tempohMin = Math.round(state.sesi.detik / 60);
+  document.getElementById('btn-tamat').disabled = true;
+  document.getElementById('btn-tamat').textContent = 'Menyimpan...';
+
+  const r = await api({
+    action:   'tamatSesi',
+    idSesi:   state.sesi.idSesi,
+    idPeserta: state.user.id,
+    langkah:  state.sesi.langkah,
+    tempohMin,
+    jarazM:   Math.round(state.sesi.langkah * 0.75),
+  });
+
+  state.sesi.aktif = false;
+
+  toast(r.mesej, r.ok ? 'ok' : 'err');
+  setTimeout(() => {
+    switchNav('dash');
+    loadDashboard();
+  }, 2000);
+}
+
+// ═══════════════════════════════════════════════
+//  ADMIN
+// ═══════════════════════════════════════════════
+async function adminLoginFlow(pin) {
+  const r = await api({ action: 'adminLogin', pin });
+  if (!r.ok) return toast(r.mesej, 'err');
+
+  state.adminPin = pin;
+  state.isAdmin  = true;
+  showScreen('admin');
+  document.getElementById('bnav').classList.remove('show');
+  setHdrAction('← Keluar', () => { state.isAdmin = false; showScreen('landing'); document.getElementById('hdr-action').style.display='none'; });
+
+  loadAdminData();
+}
+
+async function loadAdminData() {
+  const r = await api({ action: 'getAdminData', pin: state.adminPin });
+  if (!r.ok) return toast(r.mesej, 'err');
+
+  document.getElementById('a-peserta').textContent = r.ringkasan.totalPeserta;
+  document.getElementById('a-aktif').textContent   = r.ringkasan.aktifHariIni;
+  document.getElementById('a-langkah').textContent = fmtNum(r.ringkasan.totalLangkah);
+  document.getElementById('a-flag').textContent    = r.ringkasan.sesiFlagged;
+
+  // Tetapan
+  if (r.tetapan) {
+    document.getElementById('set-mula').value   = r.tetapan.tarikhMula   || '';
+    document.getElementById('set-tamat').value  = r.tetapan.tarikhTamat  || '';
+    document.getElementById('set-radius').value = r.tetapan.radiusMeter  || 400;
+  }
+
+  // Admin leaderboard
+  const el = document.getElementById('admin-lb');
+  if (!r.leaderboard.length) { el.innerHTML = '<div class="empty">Tiada data</div>'; return; }
+
+  el.innerHTML = r.leaderboard.slice(0, 10).map((p, i) => `
+    <div class="lb-item">
+      <div class="lb-rank ${['gold','silver','bronze'][i]||''}">${i < 3 ? ['🥇','🥈','🥉'][i] : '#'+(i+1)}</div>
+      <div class="lb-info">
+        <div class="lb-nama">${p.nama}</div>
+        <div class="lb-bhg">${p.bahagian}</div>
+      </div>
+      <div class="lb-steps">${fmtNum(p.jumlah)}</div>
+    </div>`).join('');
+}
+
+async function saveTetapan() {
+  const mula   = document.getElementById('set-mula').value;
+  const tamat  = document.getElementById('set-tamat').value;
+  const radius = document.getElementById('set-radius').value;
+
+  const r = await api({
+    action: 'updateTetapan',
+    pin: state.adminPin,
+    tetapan: {
+      tarikh_mula:   mula,
+      tarikh_tamat:  tamat,
+      radius_meter:  Number(radius),
+    }
+  });
+  toast(r.mesej, r.ok ? 'ok' : 'err');
+}
+
+// ═══════════════════════════════════════════════
+//  LOG KELUAR
+// ═══════════════════════════════════════════════
+function logKeluar() {
+  if (state.sesi.aktif) return toast('Sila tamatkan sesi dahulu.', 'err');
+  state.user = null;
+  document.getElementById('bnav').classList.remove('show');
+  document.getElementById('hdr-action').style.display = 'none';
+  showScreen('landing');
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+}
+
+// ═══════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════
+function haversineJS(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function fmtNum(n) {
+  return Number(n).toLocaleString('ms-MY');
+}
+
+function setBtnLoad(id, loading) {
+  const btn = document.getElementById(id);
+  btn.disabled = loading;
+  btn.innerHTML = loading ? '<span class="spinner"></span>' : btn.getAttribute('data-label') || btn.textContent;
+}
+
+let toastTimer;
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+}
+
+// ═══════════════════════════════════════════════
+//  INIT — simpan label asal butang
+// ═══════════════════════════════════════════════
+document.querySelectorAll('.btn').forEach(b => b.setAttribute('data-label', b.innerHTML));
+
+// Recover draft sesi kalau ada
+const draft = localStorage.getItem('sesiDraft');
+if (draft) {
+  // Nota: sesi aktif tidak boleh diteruskan sepenuhnya tanpa login
+  localStorage.removeItem('sesiDraft');
+}
+</script>
+</body>
+</html>
