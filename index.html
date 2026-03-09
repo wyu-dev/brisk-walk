@@ -663,18 +663,15 @@ let state = {
   }
 };
 
-// Pedometer state — zero-crossing pada axis Y (poket/tangan)
-let stepCooldown  = 500;   // min 500ms antara langkah (~120 langkah/min max)
-let lastStep      = 0;
-let sensorActive  = false;
-// Zero-crossing detection
-let lastY         = null;  // bacaan Y sebelum ini (selepas smooth)
-let yBuffer       = [];    // smoothing buffer
-const Y_BUFF      = 6;     // average 6 bacaan
-const STEP_THRESH = 0.8;   // minimum amplitude untuk kira langkah
-let peakVal       = 0;
-let inPeak        = false;
-
+// Pedometer — vector magnitude + adaptive threshold
+let stepCooldown = 400;
+let lastStep     = 0;
+let sensorActive = false;
+let magHistory   = [];          // simpan 20 bacaan magnitude terakhir
+const MAG_BUF    = 20;          // window untuk adaptive threshold
+let lastMag      = 0;
+let stepState    = 'idle';      // 'idle' | 'rising' | 'falling'
+let localMax     = 0;
 // Chart instance
 let chartInst = null;
 
@@ -894,7 +891,8 @@ async function showSesi() {
       state.sesi.langkah = 0;
       state.sesi.detik   = 0;
       // Reset pedometer state
-      lastY = null; yBuffer = []; inPeak = false; peakVal = 0; lastStep = 0; sensorActive = false;
+      magHistory = []; lastMag = 0; stepState = 'idle'; localMax = 0;
+      lastStep = 0; sensorActive = false; _latestMotion = null;
 
       showScreen('sesi');
       document.getElementById('nav-sesi').classList.add('active');
@@ -948,82 +946,98 @@ function startSesiTimers(initLat, initLng) {
 
 // ── Accelerometer / Pedometer ──
 function startMotion() {
-  window.addEventListener('devicemotion', onMotion);
+  // Guna interval polling — lebih stabil dari event pada sesetengah device
+  state.sesi.motionTimer = setInterval(pollMotion, 50); // 20Hz
+  window.addEventListener('devicemotion', captureMotion);
 }
 
 function stopMotion() {
-  window.removeEventListener('devicemotion', onMotion);
+  clearInterval(state.sesi.motionTimer);
+  window.removeEventListener('devicemotion', captureMotion);
 }
 
-function onMotion(e) {
-  const acc = e.accelerationIncludingGravity;
-  if (!acc || (acc.x === null && acc.y === null && acc.z === null)) {
-    document.getElementById('dbg-status').textContent = 'Sensor tiada data';
-    document.getElementById('dbg-status').style.color = 'var(--warn)';
-    return;
-  }
-
-  // Sensor aktif
+// Simpan bacaan terkini dari event
+let _latestMotion = null;
+function captureMotion(e) {
+  _latestMotion = e;
   if (!sensorActive) {
     sensorActive = true;
     document.getElementById('dbg-status').textContent = 'Aktif ✓';
     document.getElementById('dbg-status').style.color = 'var(--accent)';
-    document.getElementById('dbg-thresh').textContent = STEP_THRESH;
+  }
+}
+
+function pollMotion() {
+  if (!_latestMotion) {
+    document.getElementById('dbg-status').textContent = 'Tiada event...';
+    return;
   }
 
-  // Guna axis Y — paling konsisten untuk poket & tangan semasa berjalan
-  // Y berubah naik-turun mengikut irama langkah kaki
-  const rawY = acc.y || 0;
+  const e   = _latestMotion;
 
-  // Smoothing — average 6 bacaan untuk buang noise
-  yBuffer.push(rawY);
-  if (yBuffer.length > Y_BUFF) yBuffer.shift();
-  const smoothY = yBuffer.reduce((a, b) => a + b, 0) / yBuffer.length;
+  // Cuba linear acceleration dulu (tanpa gravity — lebih bersih)
+  // Kalau null, fallback ke accelerationIncludingGravity
+  let ax, ay, az;
+  if (e.acceleration && e.acceleration.x !== null) {
+    ax = e.acceleration.x || 0;
+    ay = e.acceleration.y || 0;
+    az = e.acceleration.z || 0;
+  } else if (e.accelerationIncludingGravity) {
+    ax = e.accelerationIncludingGravity.x || 0;
+    ay = e.accelerationIncludingGravity.y || 0;
+    az = e.accelerationIncludingGravity.z || 0;
+  } else {
+    return;
+  }
+
+  // Magnitude vector penuh
+  const mag = Math.sqrt(ax*ax + ay*ay + az*az);
+
+  // Simpan dalam history
+  magHistory.push(mag);
+  if (magHistory.length > MAG_BUF) magHistory.shift();
+
+  // Adaptive threshold = mean + separuh stddev
+  const mean = magHistory.reduce((a,b) => a+b, 0) / magHistory.length;
+  const variance = magHistory.reduce((a,b) => a + (b-mean)**2, 0) / magHistory.length;
+  const stddev = Math.sqrt(variance);
+  const threshold = mean + (stddev * 0.6);
+
+  // Update debug
+  document.getElementById('dbg-mag').textContent   = mag.toFixed(2);
+  document.getElementById('dbg-delta').textContent = threshold.toFixed(2);
+  document.getElementById('dbg-thresh').textContent = threshold.toFixed(1);
 
   const now = Date.now();
 
-  // Update debug
-  document.getElementById('dbg-mag').textContent   = smoothY.toFixed(2);
-
-  if (lastY !== null) {
-    const delta = smoothY - lastY;
-    document.getElementById('dbg-delta').textContent = Math.abs(delta).toFixed(2);
-
-    // Zero-crossing detection:
-    // Langkah = bila signal turun lepas peak (positif ke negatif crossing)
-    // + amplitude melebihi threshold + cooldown
-    if (!inPeak && smoothY > STEP_THRESH) {
-      inPeak = true;
-      peakVal = smoothY;
+  // State machine: idle → rising → falling → step detected
+  if (stepState === 'idle' && mag > threshold) {
+    stepState = 'rising';
+    localMax  = mag;
+  } else if (stepState === 'rising') {
+    if (mag > localMax) {
+      localMax = mag; // track peak
+    } else if (mag < threshold) {
+      // Turun balik bawah threshold — peak selesai
+      stepState = 'falling';
     }
-
-    if (inPeak && smoothY < 0 && peakVal > STEP_THRESH) {
-      // Crossing berlaku — ini satu langkah
-      if ((now - lastStep) > stepCooldown) {
+  } else if (stepState === 'falling') {
+    if (mag < mean) {
+      // Dah turun ke bawah mean — confirm 1 langkah
+      if ((now - lastStep) > stepCooldown && localMax > (mean + stddev * 0.4)) {
         lastStep = now;
-        inPeak = false;
-        peakVal = 0;
         state.sesi.langkah++;
         document.getElementById('sesi-count').textContent = state.sesi.langkah;
-        // Flash animation
         const el = document.getElementById('sesi-count');
         el.style.transform = 'scale(1.25)';
         setTimeout(() => el.style.transform = 'scale(1)', 120);
-      } else {
-        inPeak = false;
-        peakVal = 0;
       }
-    }
-
-    // Reset peak kalau dah terlalu lama dalam peak (noise)
-    if (inPeak && (now - lastStep) > 2000) {
-      inPeak = false;
-      peakVal = 0;
+      stepState = 'idle';
+      localMax  = 0;
     }
   }
-  lastY = smoothY;
 
-  // Auto-save tiap 30 saat ke localStorage
+  // Auto-save tiap 30 saat
   if (state.sesi.detik % 30 === 0 && state.sesi.detik > 0) {
     localStorage.setItem('sesiDraft', JSON.stringify({
       idSesi: state.sesi.idSesi,
