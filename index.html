@@ -373,6 +373,7 @@ canvas#chart { width: 100% !important; height: 100% !important; }
   color: var(--accent); line-height: 1;
   letter-spacing: 2px;
   animation: pulse 1s ease-in-out infinite;
+  transition: transform 0.15s ease;
 }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
 .sesi-lbl { font-size: 13px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
@@ -662,9 +663,15 @@ let state = {
   }
 };
 
-// Pedometer state
-let lastAcc = null, stepThreshold = 8, stepCooldown = 350, lastStep = 0;
-let sensorActive = false;
+// Pedometer state — tuned untuk brisk walk (80-110 langkah/minit)
+let lastAcc     = null;
+let stepThreshold = 1.5;   // sangat sensitif untuk jalan perlahan
+let stepCooldown  = 400;   // min 400ms antara langkah (~150 langkah/min max)
+let lastStep    = 0;
+let sensorActive  = false;
+// Smoothing buffer
+let accBuffer   = [];
+const BUFF_SIZE = 4;
 
 // Chart instance
 let chartInst = null;
@@ -953,28 +960,42 @@ function onMotion(e) {
     return;
   }
 
-  // Update debug status
+  // Sensor aktif
   if (!sensorActive) {
     sensorActive = true;
     document.getElementById('dbg-status').textContent = 'Aktif ✓';
     document.getElementById('dbg-status').style.color = 'var(--accent)';
+    document.getElementById('dbg-thresh').textContent = stepThreshold;
   }
 
   const x = acc.x || 0, y = acc.y || 0, z = acc.z || 0;
-  const mag = Math.sqrt(x*x + y*y + z*z);
+  const rawMag = Math.sqrt(x*x + y*y + z*z);
+
+  // Smoothing — average 4 bacaan terakhir untuk kurangkan noise
+  accBuffer.push(rawMag);
+  if (accBuffer.length > BUFF_SIZE) accBuffer.shift();
+  const mag = accBuffer.reduce((a, b) => a + b, 0) / accBuffer.length;
+
+  const now = Date.now();
 
   if (lastAcc !== null) {
-    const delta = Math.abs(mag - lastAcc);
-    const now   = Date.now();
+    const delta = mag - lastAcc; // signed delta (bukan abs) untuk detect peak
+    const absDelta = Math.abs(delta);
 
-    // Update debug values
-    document.getElementById('dbg-mag').textContent   = mag.toFixed(2);
-    document.getElementById('dbg-delta').textContent = delta.toFixed(2);
+    // Update debug
+    document.getElementById('dbg-mag').textContent   = rawMag.toFixed(2);
+    document.getElementById('dbg-delta').textContent = absDelta.toFixed(2);
 
+    // Detect langkah: peak positif melebihi threshold + cooldown
     if (delta > stepThreshold && (now - lastStep) > stepCooldown) {
       lastStep = now;
       state.sesi.langkah++;
       document.getElementById('sesi-count').textContent = state.sesi.langkah;
+
+      // Flash animation pada counter
+      const el = document.getElementById('sesi-count');
+      el.style.transform = 'scale(1.3)';
+      setTimeout(() => el.style.transform = 'scale(1)', 150);
     }
   }
   lastAcc = mag;
