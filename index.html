@@ -475,13 +475,6 @@ canvas#chart { width: 100% !important; height: 100% !important; }
       <div class="auth-title display">SELAMAT<br>KEMBALI</div>
       <div class="auth-sub">Masukkan maklumat anda untuk teruskan</div>
       <div class="field"><label>Nama Penuh</label><input id="l-nama" type="text" placeholder="Nama anda"></div>
-      <div class="field"><label>Bahagian</label>
-        <select id="l-bhg">
-          <option value="">-- Pilih Bahagian --</option>
-          <option>Pentadbiran</option><option>Bengkel</option><option>Akademik</option>
-          <option>HEP</option><option>Stor</option><option>Keselamatan</option><option>Lain-lain</option>
-        </select>
-      </div>
       <div class="field"><label>PIN (4 digit)</label><input id="l-pin" type="password" maxlength="4" inputmode="numeric" placeholder="••••"></div>
       <button class="btn btn-primary" id="btn-login" onclick="doLogin()">Log Masuk</button>
       <div class="divider">tiada akaun?</div>
@@ -493,13 +486,6 @@ canvas#chart { width: 100% !important; height: 100% !important; }
       <div class="auth-title display">DAFTAR<br>PESERTA</div>
       <div class="auth-sub">Daftar sekali, terus boleh mula berlumba</div>
       <div class="field"><label>Nama Penuh</label><input id="d-nama" type="text" placeholder="Nama penuh anda"></div>
-      <div class="field"><label>Bahagian</label>
-        <select id="d-bhg">
-          <option value="">-- Pilih Bahagian --</option>
-          <option>Pentadbiran</option><option>Bengkel</option><option>Akademik</option>
-          <option>HEP</option><option>Stor</option><option>Keselamatan</option><option>Lain-lain</option>
-        </select>
-      </div>
       <div class="field"><label>PIN Baharu (4 digit)</label><input id="d-pin" type="password" maxlength="4" inputmode="numeric" placeholder="••••"></div>
       <div class="field"><label>Sahkan PIN</label><input id="d-pin2" type="password" maxlength="4" inputmode="numeric" placeholder="••••"></div>
       <button class="btn btn-primary" id="btn-daftar" onclick="doDaftar()">Daftar</button>
@@ -731,12 +717,11 @@ function switchTab(tab) {
 // ═══════════════════════════════════════════════
 async function doLogin() {
   const nama = document.getElementById('l-nama').value.trim();
-  const bhg  = document.getElementById('l-bhg').value;
   const pin  = document.getElementById('l-pin').value;
-  if (!nama || !bhg || !pin) return toast('Sila lengkapkan semua maklumat.', 'err');
+  if (!nama || !pin) return toast('Sila lengkapkan semua maklumat.', 'err');
 
   setBtnLoad('btn-login', true);
-  const r = await api({ action: 'login', nama, bahagian: bhg, pin });
+  const r = await api({ action: 'login', nama, pin });
   setBtnLoad('btn-login', false);
 
   if (!r.ok) return toast(r.mesej, 'err');
@@ -750,15 +735,14 @@ async function doLogin() {
 // ═══════════════════════════════════════════════
 async function doDaftar() {
   const nama  = document.getElementById('d-nama').value.trim();
-  const bhg   = document.getElementById('d-bhg').value;
   const pin   = document.getElementById('d-pin').value;
   const pin2  = document.getElementById('d-pin2').value;
-  if (!nama || !bhg || !pin) return toast('Sila lengkapkan semua maklumat.', 'err');
+  if (!nama || !pin) return toast('Sila lengkapkan semua maklumat.', 'err');
   if (pin !== pin2) return toast('PIN tidak sepadan.', 'err');
   if (pin.length !== 4 || isNaN(pin)) return toast('PIN mesti 4 digit nombor.', 'err');
 
   setBtnLoad('btn-daftar', true);
-  const r = await api({ action: 'daftar', nama, bahagian: bhg, pin });
+  const r = await api({ action: 'daftar', nama, bahagian: '', pin });
   setBtnLoad('btn-daftar', false);
 
   if (!r.ok) return toast(r.mesej, 'err');
