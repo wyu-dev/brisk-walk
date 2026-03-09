@@ -575,11 +575,11 @@ canvas#chart { width: 100% !important; height: 100% !important; }
           <span id="dbg-status" style="color:var(--warn)">Menunggu...</span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <span>Nilai Gerak (mag)</span>
+          <span>Axis Y (smooth)</span>
           <span id="dbg-mag" class="mono">&#8212;</span>
         </div>
         <div style="display:flex;justify-content:space-between">
-          <span>Delta (threshold: <span id="dbg-thresh">8</span>)</span>
+          <span>Delta (threshold: <span id="dbg-thresh">0.8</span>)</span>
           <span id="dbg-delta" class="mono">&#8212;</span>
         </div>
       </div>
@@ -663,15 +663,17 @@ let state = {
   }
 };
 
-// Pedometer state — tuned untuk brisk walk (80-110 langkah/minit)
-let lastAcc     = null;
-let stepThreshold = 1.5;   // sangat sensitif untuk jalan perlahan
-let stepCooldown  = 400;   // min 400ms antara langkah (~150 langkah/min max)
-let lastStep    = 0;
+// Pedometer state — zero-crossing pada axis Y (poket/tangan)
+let stepCooldown  = 500;   // min 500ms antara langkah (~120 langkah/min max)
+let lastStep      = 0;
 let sensorActive  = false;
-// Smoothing buffer
-let accBuffer   = [];
-const BUFF_SIZE = 4;
+// Zero-crossing detection
+let lastY         = null;  // bacaan Y sebelum ini (selepas smooth)
+let yBuffer       = [];    // smoothing buffer
+const Y_BUFF      = 6;     // average 6 bacaan
+const STEP_THRESH = 0.8;   // minimum amplitude untuk kira langkah
+let peakVal       = 0;
+let inPeak        = false;
 
 // Chart instance
 let chartInst = null;
@@ -891,7 +893,8 @@ async function showSesi() {
       state.sesi.aktif   = true;
       state.sesi.langkah = 0;
       state.sesi.detik   = 0;
-      lastAcc = null;
+      // Reset pedometer state
+      lastY = null; yBuffer = []; inPeak = false; peakVal = 0; lastStep = 0; sensorActive = false;
 
       showScreen('sesi');
       document.getElementById('nav-sesi').classList.add('active');
@@ -965,40 +968,60 @@ function onMotion(e) {
     sensorActive = true;
     document.getElementById('dbg-status').textContent = 'Aktif ✓';
     document.getElementById('dbg-status').style.color = 'var(--accent)';
-    document.getElementById('dbg-thresh').textContent = stepThreshold;
+    document.getElementById('dbg-thresh').textContent = STEP_THRESH;
   }
 
-  const x = acc.x || 0, y = acc.y || 0, z = acc.z || 0;
-  const rawMag = Math.sqrt(x*x + y*y + z*z);
+  // Guna axis Y — paling konsisten untuk poket & tangan semasa berjalan
+  // Y berubah naik-turun mengikut irama langkah kaki
+  const rawY = acc.y || 0;
 
-  // Smoothing — average 4 bacaan terakhir untuk kurangkan noise
-  accBuffer.push(rawMag);
-  if (accBuffer.length > BUFF_SIZE) accBuffer.shift();
-  const mag = accBuffer.reduce((a, b) => a + b, 0) / accBuffer.length;
+  // Smoothing — average 6 bacaan untuk buang noise
+  yBuffer.push(rawY);
+  if (yBuffer.length > Y_BUFF) yBuffer.shift();
+  const smoothY = yBuffer.reduce((a, b) => a + b, 0) / yBuffer.length;
 
   const now = Date.now();
 
-  if (lastAcc !== null) {
-    const delta = mag - lastAcc; // signed delta (bukan abs) untuk detect peak
-    const absDelta = Math.abs(delta);
+  // Update debug
+  document.getElementById('dbg-mag').textContent   = smoothY.toFixed(2);
 
-    // Update debug
-    document.getElementById('dbg-mag').textContent   = rawMag.toFixed(2);
-    document.getElementById('dbg-delta').textContent = absDelta.toFixed(2);
+  if (lastY !== null) {
+    const delta = smoothY - lastY;
+    document.getElementById('dbg-delta').textContent = Math.abs(delta).toFixed(2);
 
-    // Detect langkah: peak positif melebihi threshold + cooldown
-    if (delta > stepThreshold && (now - lastStep) > stepCooldown) {
-      lastStep = now;
-      state.sesi.langkah++;
-      document.getElementById('sesi-count').textContent = state.sesi.langkah;
+    // Zero-crossing detection:
+    // Langkah = bila signal turun lepas peak (positif ke negatif crossing)
+    // + amplitude melebihi threshold + cooldown
+    if (!inPeak && smoothY > STEP_THRESH) {
+      inPeak = true;
+      peakVal = smoothY;
+    }
 
-      // Flash animation pada counter
-      const el = document.getElementById('sesi-count');
-      el.style.transform = 'scale(1.3)';
-      setTimeout(() => el.style.transform = 'scale(1)', 150);
+    if (inPeak && smoothY < 0 && peakVal > STEP_THRESH) {
+      // Crossing berlaku — ini satu langkah
+      if ((now - lastStep) > stepCooldown) {
+        lastStep = now;
+        inPeak = false;
+        peakVal = 0;
+        state.sesi.langkah++;
+        document.getElementById('sesi-count').textContent = state.sesi.langkah;
+        // Flash animation
+        const el = document.getElementById('sesi-count');
+        el.style.transform = 'scale(1.25)';
+        setTimeout(() => el.style.transform = 'scale(1)', 120);
+      } else {
+        inPeak = false;
+        peakVal = 0;
+      }
+    }
+
+    // Reset peak kalau dah terlalu lama dalam peak (noise)
+    if (inPeak && (now - lastStep) > 2000) {
+      inPeak = false;
+      peakVal = 0;
     }
   }
-  lastAcc = mag;
+  lastY = smoothY;
 
   // Auto-save tiap 30 saat ke localStorage
   if (state.sesi.detik % 30 === 0 && state.sesi.detik > 0) {
@@ -1009,6 +1032,7 @@ function onMotion(e) {
     }));
   }
 }
+
 
 async function tamatSesi() {
   if (!state.sesi.aktif) return;
