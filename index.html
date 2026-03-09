@@ -567,14 +567,30 @@ canvas#chart { width: 100% !important; height: 100% !important; }
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Had Masa Sesi</div>
         <div style="font-family:var(--font-mono);font-size:18px;color:var(--warn)" id="sesi-had">30:00</div>
       </div>
-      <button class="btn btn-danger" id="btn-tamat" onclick="tamatSesi()">⏹ &nbsp; TAMAT SESI</button>
+      <!-- Debug panel sensor -->
+      <div class="card card-sm" id="debug-panel" style="font-size:12px;color:var(--muted)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span>Status Sensor</span>
+          <span id="dbg-status" style="color:var(--warn)">Menunggu...</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span>Nilai Gerak (mag)</span>
+          <span id="dbg-mag" class="mono">&#8212;</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Delta (threshold: <span id="dbg-thresh">8</span>)</span>
+          <span id="dbg-delta" class="mono">&#8212;</span>
+        </div>
+      </div>
+
+      <button class="btn btn-danger" id="btn-tamat" onclick="tamatSesi()">&#9209; &nbsp; TAMAT SESI</button>
       <div style="font-size:12px;color:var(--muted);text-align:center">
         Sesi akan ditamat secara automatik selepas 30 minit
       </div>
     </div>
   </div>
 
-  <!-- ── ADMIN ── -->
+  <!-- &#8203;&#8203; ADMIN &#8203;&#8203; -->
   <div class="screen" id="s-admin">
     <div style="font-family:var(--font-dis);font-size:28px;letter-spacing:2px;margin-bottom:4px">⚙️ ADMIN</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Dashboard Pentadbir</div>
@@ -647,7 +663,8 @@ let state = {
 };
 
 // Pedometer state
-let lastAcc = null, stepThreshold = 12, stepCooldown = 300, lastStep = 0;
+let lastAcc = null, stepThreshold = 8, stepCooldown = 350, lastStep = 0;
+let sensorActive = false;
 
 // Chart instance
 let chartInst = null;
@@ -930,13 +947,30 @@ function stopMotion() {
 
 function onMotion(e) {
   const acc = e.accelerationIncludingGravity;
-  if (!acc) return;
+  if (!acc || (acc.x === null && acc.y === null && acc.z === null)) {
+    document.getElementById('dbg-status').textContent = 'Sensor tiada data';
+    document.getElementById('dbg-status').style.color = 'var(--warn)';
+    return;
+  }
 
-  const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
+  // Update debug status
+  if (!sensorActive) {
+    sensorActive = true;
+    document.getElementById('dbg-status').textContent = 'Aktif ✓';
+    document.getElementById('dbg-status').style.color = 'var(--accent)';
+  }
+
+  const x = acc.x || 0, y = acc.y || 0, z = acc.z || 0;
+  const mag = Math.sqrt(x*x + y*y + z*z);
 
   if (lastAcc !== null) {
     const delta = Math.abs(mag - lastAcc);
     const now   = Date.now();
+
+    // Update debug values
+    document.getElementById('dbg-mag').textContent   = mag.toFixed(2);
+    document.getElementById('dbg-delta').textContent = delta.toFixed(2);
+
     if (delta > stepThreshold && (now - lastStep) > stepCooldown) {
       lastStep = now;
       state.sesi.langkah++;
@@ -946,7 +980,7 @@ function onMotion(e) {
   lastAcc = mag;
 
   // Auto-save tiap 30 saat ke localStorage
-  if (state.sesi.detik % 30 === 0) {
+  if (state.sesi.detik % 30 === 0 && state.sesi.detik > 0) {
     localStorage.setItem('sesiDraft', JSON.stringify({
       idSesi: state.sesi.idSesi,
       langkah: state.sesi.langkah,
