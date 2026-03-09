@@ -1079,8 +1079,15 @@ function fmtNum(n) {
 
 function setBtnLoad(id, loading) {
   const btn = document.getElementById(id);
-  btn.disabled = loading;
-  btn.innerHTML = loading ? '<span class="spinner"></span>' : btn.getAttribute('data-label') || btn.textContent;
+  if (!btn) return;
+  if (loading) {
+    if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.innerHTML);
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = btn.getAttribute('data-label') || btn.innerHTML;
+  }
 }
 
 let toastTimer;
